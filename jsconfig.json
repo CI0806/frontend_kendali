@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    // 1. Move baseUrl to the project root
+    "baseUrl": ".", 
+    
+    // 2. Adjust paths to point from the root into src
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+
+    // 3. Ensure modern module resolution for Vite
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "preserve",
+
+    // Keep this if you still get warnings, but the above usually fixes it
+  },
+  "include": ["src/**/*", "vite.config.ts", "vite.config.js"],
+  "exclude": ["node_modules", "**/*.spec.ts", "**/*.test.ts"]
+}
