@@ -15,6 +15,7 @@ import {
   Divider,
   useTheme,
   alpha,
+  Alert,
 } from "@mui/material";
 import {
   Close,
@@ -32,8 +33,8 @@ import {
   TableChart,
   Slideshow,
   InsertDriveFile,
-  InfoOutlined,
-  DownloadDone,
+  WarningAmber,
+  FolderOff,
 } from "@mui/icons-material";
 import { url as API_BASE_URL } from "@/utils/constants";
 import { handleDownload } from "@/utils/download";
@@ -47,20 +48,44 @@ const formatFileSize = (bytes) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
 };
 
-// Helper normalisasi URL berkas
+// Helper normalisasi URL berkas yang sangat toleran terhadap format path di database
 export const getCleanDocumentUrl = (pathOrUrl) => {
   if (!pathOrUrl) return "";
-  const str = String(pathOrUrl).trim().replace(/\\/g, "/");
+  let str = String(pathOrUrl).trim().replace(/\\/g, "/");
+
+  // Jika sudah merupakan full URL (http, https, blob, data)
   if (
     str.startsWith("http://") ||
     str.startsWith("https://") ||
     str.startsWith("blob:") ||
     str.startsWith("data:")
   ) {
-    return str;
+    return encodeURI(str);
   }
-  const cleanRelative = str.replace(/^\/+/, "");
-  return `${API_BASE_URL}/${cleanRelative}`;
+
+  // Jika mengandung uploads/ atau upload/ (misal dari path absolut Windows D:/.../uploads/arsip/...)
+  if (str.includes("uploads/")) {
+    str = str.substring(str.indexOf("uploads/"));
+  } else if (str.includes("upload/")) {
+    str = str.substring(str.indexOf("upload/"));
+  } else {
+    // Jika hanya berupa nama berkas tanpa folder, arahkan ke uploads/arsip/
+    str = str.replace(/^(\.\/|\/)+/, "");
+    if (!str.startsWith("uploads/") && !str.startsWith("upload/")) {
+      str = `uploads/arsip/${str}`;
+    }
+  }
+
+  // Bersihkan ./ atau leading slash
+  str = str.replace(/^(\.\/|\/)+/, "");
+
+  // Encode setiap segmen path agar karakter spasi, kurung, dan karakter khusus aman di URL
+  const encodedPath = str
+    .split("/")
+    .map((seg) => encodeURIComponent(seg))
+    .join("/");
+
+  return `${API_BASE_URL}/${encodedPath}`;
 };
 
 // Helper deteksi tipe berkas
@@ -96,6 +121,7 @@ const DocumentPreviewModal = ({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
   const [textContent, setTextContent] = useState("");
@@ -118,34 +144,72 @@ const DocumentPreviewModal = ({
   const fileSize = file?.file_size ? formatFileSize(file.file_size) : null;
   const nomorArsip = file?.nomor_arsip || null;
 
-  // Reset state saat modal dibuka/ganti dokumen
+  // Cek ketersediaan file setiap kali modal dibuka / berganti file
   useEffect(() => {
     if (open) {
       setIsLoading(true);
       setLoadError(false);
+      setErrorMessage("");
       setZoom(1);
       setRotation(0);
       setTextContent("");
       setTryCloudViewer(false);
 
+      if (!rawPath && !documentUrl) {
+        setIsLoading(false);
+        setLoadError(true);
+        setErrorMessage("Path berkas tidak ditemukan di database.");
+        return;
+      }
+
+      let isMounted = true;
+
+      // Cek apakah file fisik merespons 404 di server
+      if (documentUrl && documentUrl.startsWith("http")) {
+        fetch(documentUrl, { method: "HEAD" })
+          .then((res) => {
+            if (!isMounted) return;
+            if (res.status === 404) {
+              setLoadError(true);
+              setErrorMessage("Berkas fisik tidak ditemukan di server (404 Not Found).");
+            }
+            setIsLoading(false);
+          })
+          .catch(() => {
+            // Jika HEAD gagal karena CORS, tetap izinkan browser mencoba memuat
+            if (isMounted) setIsLoading(false);
+          });
+      } else {
+        setIsLoading(false);
+      }
+
       // Jika format teks, ambil isinya
       if (fileType === "text" && documentUrl) {
         fetch(documentUrl)
           .then((res) => {
-            if (!res.ok) throw new Error("Gagal mengambil teks");
+            if (!res.ok) throw new Error("Gagal mengambil teks berkas");
             return res.text();
           })
           .then((text) => {
-            setTextContent(text);
-            setIsLoading(false);
+            if (isMounted) {
+              setTextContent(text);
+              setIsLoading(false);
+            }
           })
           .catch(() => {
-            setLoadError(true);
-            setIsLoading(false);
+            if (isMounted) {
+              setLoadError(true);
+              setErrorMessage("Gagal membaca isi berkas teks.");
+              setIsLoading(false);
+            }
           });
       }
+
+      return () => {
+        isMounted = false;
+      };
     }
-  }, [open, documentUrl, fileType]);
+  }, [open, documentUrl, rawPath, fileType]);
 
   const handleDownloadFile = () => {
     if (onCustomDownload) {
@@ -220,8 +284,106 @@ const DocumentPreviewModal = ({
 
   const badge = getTypeBadge();
 
+  // Render Tampilan Error yang informatif dan ramah pengguna
+  const renderErrorState = () => (
+    <Stack
+      alignItems="center"
+      justifyContent="center"
+      height="100%"
+      spacing={3}
+      p={4}
+      sx={{ bgcolor: "background.paper" }}>
+      <Box
+        sx={{
+          p: 3,
+          borderRadius: "50%",
+          bgcolor: alpha(theme.palette.error.main, 0.1),
+          color: "error.main",
+        }}>
+        <WarningAmber sx={{ fontSize: 64 }} />
+      </Box>
+
+      <Box textAlign="center" maxWidth={560}>
+        <Typography variant="h6" fontWeight={800} gutterBottom color="error.main">
+          Berkas Fisik Tidak Ditemukan di Server
+        </Typography>
+        <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+          {errorMessage ||
+            "Dokumen ini terdaftar di database, namun berkas fisik PDF-nya belum tersedia atau tidak ditemukan di folder penyimpanan server VPS (`uploads/arsip/`)."}
+        </Typography>
+
+        <Paper
+          variant="outlined"
+          sx={{
+            p: 2,
+            bgcolor: (theme) =>
+              theme.palette.mode === "dark" ? "action.hover" : "#f8fafc",
+            borderRadius: 3,
+            textAlign: "left",
+            fontSize: "0.8rem",
+          }}>
+          <Stack spacing={1}>
+            <Stack direction="row" justifyContent="space-between">
+              <Typography variant="caption" color="textSecondary">
+                Nama Berkas / Judul:
+              </Typography>
+              <Typography variant="caption" fontWeight={700}>
+                {displayTitle}
+              </Typography>
+            </Stack>
+            <Stack direction="row" justifyContent="space-between">
+              <Typography variant="caption" color="textSecondary">
+                Path di Database:
+              </Typography>
+              <Typography variant="caption" fontFamily="monospace" fontWeight={700}>
+                {rawPath || "(kosong)"}
+              </Typography>
+            </Stack>
+            {nomorArsip && (
+              <Stack direction="row" justifyContent="space-between">
+                <Typography variant="caption" color="textSecondary">
+                  Nomor Arsip:
+                </Typography>
+                <Typography variant="caption" fontWeight={700}>
+                  {nomorArsip}
+                </Typography>
+              </Stack>
+            )}
+          </Stack>
+        </Paper>
+      </Box>
+
+      <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+        <Button
+          variant="contained"
+          startIcon={<GetApp />}
+          onClick={handleDownloadFile}
+          sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}>
+          Coba Unduh via API
+        </Button>
+        <Button
+          variant="outlined"
+          startIcon={<OpenInNew />}
+          onClick={handleOpenInNewTab}
+          sx={{ textTransform: "none", borderRadius: 2 }}>
+          Buka Tautan Langsung
+        </Button>
+        <Button
+          variant="text"
+          onClick={onClose}
+          sx={{ textTransform: "none" }}>
+          Tutup
+        </Button>
+      </Stack>
+    </Stack>
+  );
+
   // Render Konten Pratinjau berdasarkan Format
   const renderPreviewContent = () => {
+    if (loadError) {
+      return renderErrorState();
+    }
+
     if (!documentUrl) {
       return (
         <Stack
@@ -279,45 +441,6 @@ const DocumentPreviewModal = ({
               height: "100%",
             }}
           />
-
-          {loadError && (
-            <Stack
-              alignItems="center"
-              justifyContent="center"
-              spacing={2}
-              p={4}
-              sx={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                bgcolor: "background.paper",
-                zIndex: 3,
-              }}>
-              <PictureAsPdf sx={{ fontSize: 64, color: "error.main" }} />
-              <Typography variant="h6" fontWeight={700}>
-                Pratinjau PDF Tidak Dapat Dimuat Langsung
-              </Typography>
-              <Typography variant="body2" color="textSecondary" textAlign="center" maxWidth={450}>
-                Browser Anda mungkin memblokir tampilan PDF tersemat atau file memerlukan otorisasi.
-              </Typography>
-              <Stack direction="row" spacing={2} sx={{ mt: 1 }}>
-                <Button
-                  variant="contained"
-                  startIcon={<GetApp />}
-                  onClick={handleDownloadFile}>
-                  Unduh PDF
-                </Button>
-                <Button
-                  variant="outlined"
-                  startIcon={<OpenInNew />}
-                  onClick={handleOpenInNewTab}>
-                  Buka di Tab Baru
-                </Button>
-              </Stack>
-            </Stack>
-          )}
         </Box>
       );
     }
@@ -417,37 +540,6 @@ const DocumentPreviewModal = ({
               </IconButton>
             </Tooltip>
           </Paper>
-
-          {loadError && (
-            <Stack
-              alignItems="center"
-              justifyContent="center"
-              spacing={2}
-              p={4}
-              sx={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                bgcolor: "background.paper",
-                zIndex: 3,
-              }}>
-              <ImageIcon sx={{ fontSize: 64, color: "error.main" }} />
-              <Typography variant="h6" fontWeight={700}>
-                Gagal Memuat Gambar
-              </Typography>
-              <Typography variant="body2" color="textSecondary">
-                Gambar tidak dapat ditampilkan atau tautan telah kedaluwarsa.
-              </Typography>
-              <Button
-                variant="contained"
-                startIcon={<GetApp />}
-                onClick={handleDownloadFile}>
-                Unduh Gambar
-              </Button>
-            </Stack>
-          )}
         </Box>
       );
     }
@@ -467,7 +559,7 @@ const DocumentPreviewModal = ({
           ? TableChart
           : Slideshow;
 
-      // Opsi Cloud Viewer (Google Docs Viewer) jika diaktifkan user
+      // Opsi Cloud Viewer jika diaktifkan user
       if (tryCloudViewer) {
         return (
           <Box sx={{ position: "relative", width: "100%", height: "100%" }}>
