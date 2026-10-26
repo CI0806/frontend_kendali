@@ -347,12 +347,10 @@ const Peminjaman = () => {
                                         color="info"
                                         disabled={expired}
                                         startIcon={<OpenInNew />}
-                                        onClick={() =>
-                                          window.open(
-                                            `${url}/${arsip.file_path || arsip.file_url}`,
-                                            "_blank",
-                                          )
-                                        }>
+                                        onClick={() => {
+                                          const filePath = (arsip.file_path || arsip.file_url || "").replace(/\\/g, "/").replace(/^\/+/, "");
+                                          window.open(`${url}/${filePath}`, "_blank");
+                                        }}>
                                         Lihat
                                       </Button>
                                     </span>

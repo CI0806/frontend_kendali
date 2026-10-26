@@ -628,19 +628,27 @@ const Dokumen = () => {
                       ? theme.palette.primary.light
                       : colors.indigo[700]
                   }
-                  mb={1}
+                  mb={0.5}
                 >
-                  UNGGAH DRAF BERKAS (DOC/DOCX)
+                  UNGGAH DRAF BERKAS (PDF, DOC, DOCX)
+                </Typography>
+                <Typography
+                  variant="caption"
+                  color={isDarkMode ? "primary.light" : "primary.main"}
+                  sx={{ display: "block", mb: 1.5, fontWeight: 600 }}
+                >
+                  ⚡ Dokumen yang diunggah akan otomatis terintegrasi dan langsung tersimpan ke Menu Arsip (dilengkapi AI OCR & Semantic Search).
                 </Typography>
                 <FileUploadWithLoading
-                  accept=".doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                   onUploadSuccess={(file) => {
                     const fileExtension = file.name
                       .split(".")
                       .pop()
                       .toLowerCase();
-                    if (fileExtension !== "doc" && fileExtension !== "docx") {
-                      alert("Hanya file .doc dan .docx yang diperbolehkan!");
+                    const allowed = ["pdf", "doc", "docx"];
+                    if (!allowed.includes(fileExtension)) {
+                      alert("Hanya file .pdf, .doc, dan .docx yang diperbolehkan!");
                       setSelectedFile(null);
                       return;
                     }

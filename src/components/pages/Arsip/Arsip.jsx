@@ -73,7 +73,7 @@ import {
   KeyboardArrowLeft, // Icon baru untuk button upload
   AutoAwesome,
 } from "@mui/icons-material";
-import DocViewer, { DocViewerRenderers } from "@cyntler/react-doc-viewer";
+import DocumentPreviewModal from "@/components/ui/DocumentPreviewModal";
 import ReactDiffViewer from "react-diff-viewer-continued";
 import { useForm } from "react-hook-form";
 import { useDropzone } from "react-dropzone";
@@ -343,8 +343,8 @@ const Arsip = () => {
   const [versions, setVersions] = useState([]);
   const versionInputRef = useRef(null);
 
-  const [docViewerOpen, setDocViewerOpen] = useState(false);
-  const [docViewerDocs, setDocViewerDocs] = useState([]);
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [previewFile, setPreviewFile] = useState(null);
 
   const [diffModalOpen, setDiffModalOpen] = useState(false);
   const [diffOldText, setDiffOldText] = useState("");
@@ -2824,26 +2824,68 @@ const Arsip = () => {
               </IconButton>
             </Stack>
 
-            {/* File Icon Preview */}
+            {/* File Icon / Interactive Preview Thumbnail */}
             <Box
+              onClick={() => {
+                setPreviewFile(selectedFile);
+                setPreviewModalOpen(true);
+              }}
               sx={{
                 textAlign: "center",
                 mb: 4,
-                py: 4,
-                // Menggunakan theme.palette.action.hover atau palette.background.default
+                py: 3,
+                px: 2,
                 bgcolor: (theme) =>
                   theme.palette.mode === "dark" ? "action.hover" : "#f8f9fa",
                 borderRadius: 4,
                 border: "1px dashed",
-                borderColor: "divider", // Warna garis otomatis
+                borderColor: "primary.main",
+                cursor: "pointer",
+                transition: "all 0.2s ease-in-out",
+                position: "relative",
+                overflow: "hidden",
+                "&:hover": {
+                  bgcolor: (theme) => alpha(theme.palette.primary.main, 0.08),
+                  borderColor: "primary.dark",
+                  transform: "scale(1.02)",
+                },
               }}>
-              <InsertDriveFile sx={{ fontSize: 60, color: "primary.main" }} />
+              {["jpg", "jpeg", "png", "webp"].includes(
+                selectedFile.file_type?.toLowerCase() || "",
+              ) ? (
+                <Box
+                  component="img"
+                  src={`${url}/${(selectedFile.file_path || selectedFile.file_url || "").replace(/\\/g, "/").replace(/^\/+/, "")}`}
+                  alt="Thumbnail"
+                  sx={{
+                    maxHeight: 120,
+                    maxWidth: "100%",
+                    objectFit: "contain",
+                    borderRadius: 2,
+                    mb: 1,
+                  }}
+                />
+              ) : (
+                <InsertDriveFile sx={{ fontSize: 56, color: "primary.main" }} />
+              )}
               <Typography
                 variant="caption"
                 display="block"
                 color="textSecondary"
-                sx={{ mt: 1 }}>
+                sx={{ mt: 0.5, fontWeight: 700 }}>
                 {selectedFile.file_type?.toUpperCase() || "PDF"} Document
+              </Typography>
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "primary.main",
+                  fontWeight: 600,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 0.5,
+                  mt: 0.5,
+                }}>
+                <Visibility sx={{ fontSize: 14 }} /> Klik untuk Pratinjau
               </Typography>
             </Box>
 
@@ -3188,11 +3230,9 @@ const Arsip = () => {
                 <Button
                   variant="contained"
                   startIcon={<Visibility />}
-                  //disabled={!selectedFile?.file_path}
                   onClick={() => {
-                    const path = (selectedFile.file_path || selectedFile.file_url || "").replace(/\\/g, '/');
-                    setDocViewerDocs([{ uri: `${url}/${path}` }]);
-                    setDocViewerOpen(true);
+                    setPreviewFile(selectedFile);
+                    setPreviewModalOpen(true);
                   }}>
                   Lihat Dokumen
                 </Button>
@@ -3276,8 +3316,13 @@ const Arsip = () => {
                       <Button
                         size="small"
                         onClick={() => {
-                          const path = (v.file_path || "").replace(/\\/g, '/');
-                          window.open(`${url}/${path}#toolbar=0`, "_blank");
+                          setPreviewFile({
+                            ...selectedFile,
+                            file_path: v.file_path,
+                            file_type: v.file_type || selectedFile?.file_type,
+                            perihal: `${selectedFile?.perihal || "Arsip"} (v${v.version})`,
+                          });
+                          setPreviewModalOpen(true);
                         }}
                         startIcon={<Visibility />}>
                         Lihat
@@ -3539,29 +3584,14 @@ const Arsip = () => {
         </DialogActions>
       </Dialog>
 
-      <Dialog
-        open={docViewerOpen}
-        onClose={() => setDocViewerOpen(false)}
-        maxWidth="lg"
-        fullWidth
-        PaperProps={{ sx: { height: '90vh' } }}
-      >
-        <DialogTitle sx={{ m: 0, p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="h6">Preview Dokumen</Typography>
-          <IconButton onClick={() => setDocViewerOpen(false)}>
-            <Close />
-          </IconButton>
-        </DialogTitle>
-        <DialogContent dividers sx={{ p: 0 }}>
-          {docViewerDocs.length > 0 && (
-            <DocViewer
-              documents={docViewerDocs}
-              pluginRenderers={DocViewerRenderers}
-              style={{ height: "100%" }}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+      <DocumentPreviewModal
+        open={previewModalOpen}
+        onClose={() => {
+          setPreviewModalOpen(false);
+          setPreviewFile(null);
+        }}
+        file={previewFile}
+      />
 
       <Snackbar
         open={toast.open}

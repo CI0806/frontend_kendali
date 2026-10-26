@@ -2,10 +2,11 @@ import axios from 'axios';
 
 import session from './session';
 
+const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+const defaultBaseURL = isLocalhost ? 'http://localhost:3000/api/v1' : 'https://api.pkmkarjotarakan.com/api/v1';
+
 const network = axios.create({
-  baseURL: 'https://api.pkmkarjotarakan.com/api/v1',
-  //baseURL: 'http://localhost:3000/api/v1',
-  // http://localhost:3000/api/v1
+  baseURL: defaultBaseURL,
 });
 
 network.interceptors.request.use(

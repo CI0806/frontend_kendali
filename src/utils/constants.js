@@ -6,5 +6,5 @@ export const DRAG_LIST = 'drag_list';
 
 export const SESSION_KEY = 'my-session';
 
-export const url = 'https://api.pkmkarjotarakan.com';
-//export const url =  'http://localhost:3000';
+const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+export const url = isLocalhost ? 'http://localhost:3000' : 'https://api.pkmkarjotarakan.com';

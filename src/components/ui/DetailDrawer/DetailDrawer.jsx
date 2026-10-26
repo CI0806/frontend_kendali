@@ -138,7 +138,7 @@ const DetailDrawer = ({
     if (["jpg", "jpeg", "png"].includes(ekstensi)) {
       return (
         <img
-          src={url}
+          src={currentFileUrl}
           alt="Preview"
           style={{ width: "100%", height: "100%", objectFit: "contain" }}
         />
@@ -149,7 +149,7 @@ const DetailDrawer = ({
     if (ekstensi === "pdf") {
       return (
         <embed
-          src={`${url}#toolbar=0`}
+          src={`${currentFileUrl}#toolbar=0`}
           type="application/pdf"
           width="100%"
           height="100%"
@@ -175,7 +175,7 @@ const DetailDrawer = ({
           </Typography>
           <Button
             variant="contained"
-            onClick={() => window.open(url, "_blank")}>
+            onClick={() => window.open(currentFileUrl, "_blank")}>
             Unduh & Lihat Dokumen
           </Button>
         </Stack>

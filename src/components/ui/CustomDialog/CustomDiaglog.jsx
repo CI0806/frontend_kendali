@@ -21,13 +21,24 @@ import {
 const CustomDialog = ({ 
   open, 
   onClose, 
+  handleClose,
   onConfirm, 
   title, 
   subtitle, 
+  content,
   type = "success", // success, error, warning, info
   confirmText = "Oke",
   showCancel = false
 }) => {
+
+  const dismiss = handleClose || onClose || (() => {});
+
+  const handleConfirmAction = () => {
+    if (onConfirm) {
+      onConfirm();
+    }
+    dismiss();
+  };
 
   // Konfigurasi Warna & Icon berdasarkan tipe
   const config = {
@@ -42,14 +53,14 @@ const CustomDialog = ({
   return (
     <Dialog 
       open={open} 
-      onClose={onClose}
+      onClose={dismiss}
       PaperProps={{
         sx: { borderRadius: "24px", p: 2, maxWidth: "400px", textAlign: "center" }
       }}
     >
       {/* Tombol Close di Pojok */}
       <IconButton 
-        onClick={onClose} 
+        onClick={dismiss} 
         sx={{ position: "absolute", right: 16, top: 16, color: colors.grey[400] }}
       >
         <CloseRounded />
@@ -61,8 +72,8 @@ const CustomDialog = ({
           <Typography variant="h6" fontWeight="900">
             {title}
           </Typography>
-          <Typography variant="body2" color="text.secondary">
-            {subtitle}
+          <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: "pre-line" }}>
+            {subtitle || content}
           </Typography>
         </Stack>
       </DialogContent>
@@ -70,7 +81,7 @@ const CustomDialog = ({
       <DialogActions sx={{ justifyContent: "center", pb: 3, px: 3, gap: 1 }}>
         {showCancel && (
           <Button 
-            onClick={onClose} 
+            onClick={dismiss} 
             fullWidth
             variant="outlined" 
             sx={{ borderRadius: "12px", py: 1.2, fontWeight: "bold", color: colors.grey[600], borderColor: colors.grey[300] }}
@@ -79,7 +90,7 @@ const CustomDialog = ({
           </Button>
         )}
         <Button 
-          onClick={onConfirm || onClose} 
+          onClick={handleConfirmAction} 
           fullWidth
           variant="contained" 
           sx={{ 
